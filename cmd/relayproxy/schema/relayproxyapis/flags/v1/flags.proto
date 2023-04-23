@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package relayproxy.flags.v1;
+
+option go_package = "github.com/thomaspoignant/go-feature-flag/relayproxy/flags/v1;flagsv1";
+
+import "google/protobuf/any.proto";
+
+message UserRequest {
+    string Key = 1;
+    bool Anonymous = 2;
+    map <string, google.protobuf.Any> Custom = 3;
+}
+
+message AllFlagsRequest {
+    UserRequest user = 1;
+}
+
+message FlagState {
+    google.protobuf.Any Value = 1;
+    int64 Timestamp = 2;
+    string VariationType = 3;
+    bool TrackEvents = 4;
+    bool Failed = 5;
+    string ErrorCode = 6;
+    string Reason = 7;
+}
+
+message AllFlagsResponse {
+    map<string, FlagState> flags = 1;
+    bool valid = 2;
+}
+
+service AllFlagsService {
+    rpc Post(AllFlagsRequest) returns (AllFlagsResponse) {}
+}
