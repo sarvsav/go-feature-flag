@@ -18,6 +18,7 @@ import (
 	"github.com/thomaspoignant/go-feature-flag/retriever/fileretriever"
 	"github.com/thomaspoignant/go-feature-flag/retriever/gcstorageretriever"
 	"github.com/thomaspoignant/go-feature-flag/retriever/githubretriever"
+	"github.com/thomaspoignant/go-feature-flag/retriever/gitlabretriever"
 	"github.com/thomaspoignant/go-feature-flag/retriever/httpretriever"
 	"github.com/thomaspoignant/go-feature-flag/retriever/k8sretriever"
 	"github.com/thomaspoignant/go-feature-flag/retriever/s3retriever"
@@ -89,19 +90,36 @@ func initRetriever(c *config.RetrieverConf) (retriever.Retriever, error) {
 	// Conversions
 	switch c.Kind {
 	case config.GitHubRetriever:
+		token := c.AuthToken
+		if token == "" && c.GithubToken != "" { // nolint: staticcheck
+			token = c.GithubToken // nolint: staticcheck
+		}
 		return &githubretriever.Retriever{
 			RepositorySlug: c.RepositorySlug,
 			Branch: func() string {
 				if c.Branch == "" {
-					return config.DefaultRetriever.GithubBranch
+					return config.DefaultRetriever.GitBranch
 				}
 				return c.Branch
 			}(),
 			FilePath:    c.Path,
-			GithubToken: c.GithubToken,
+			GithubToken: token,
 			Timeout:     retrieverTimeout,
 		}, nil
-
+	case config.GitlabRetriever:
+		return &gitlabretriever.Retriever{
+			BaseURL: c.BaseURL,
+			Branch: func() string {
+				if c.Branch == "" {
+					return config.DefaultRetriever.GitBranch
+				}
+				return c.Branch
+			}(),
+			FilePath:       c.Path,
+			GitlabToken:    c.AuthToken,
+			RepositorySlug: c.RepositorySlug,
+			Timeout:        retrieverTimeout,
+		}, nil
 	case config.FileRetriever:
 		return &fileretriever.Retriever{
 			Path: c.Path,
@@ -167,6 +185,11 @@ func initExporter(c *config.ExporterConf) (ffclient.DataExporter, error) {
 		csvTemplate = c.CsvTemplate
 	}
 
+	parquetCompressionCodec := config.DefaultExporter.ParquetCompressionCodec
+	if c.ParquetCompressionCodec != "" {
+		parquetCompressionCodec = c.ParquetCompressionCodec
+	}
+
 	dataExp := ffclient.DataExporter{
 		FlushInterval: func() time.Duration {
 			if c.FlushInterval != 0 {
@@ -185,19 +208,12 @@ func initExporter(c *config.ExporterConf) (ffclient.DataExporter, error) {
 	switch c.Kind {
 	case config.WebhookExporter:
 		dataExp.Exporter = &webhookexporter.Exporter{
-			EndpointURL: c.EndpointURL,
-			Secret:      c.Secret,
-			Meta:        c.Meta,
-		}
+			EndpointURL: c.EndpointURL, Secret: c.Secret, Meta: c.Meta, Headers: c.Headers}
 		return dataExp, nil
 
 	case config.FileExporter:
-		dataExp.Exporter = &fileexporter.Exporter{
-			Format:      format,
-			OutputDir:   c.OutputDir,
-			Filename:    filename,
-			CsvTemplate: csvTemplate,
-		}
+		dataExp.Exporter = &fileexporter.Exporter{Format: format, OutputDir: c.OutputDir, Filename: filename,
+			CsvTemplate: csvTemplate, ParquetCompressionCodec: parquetCompressionCodec}
 		return dataExp, nil
 
 	case config.LogExporter:
@@ -213,21 +229,23 @@ func initExporter(c *config.ExporterConf) (ffclient.DataExporter, error) {
 
 	case config.S3Exporter:
 		dataExp.Exporter = &s3exporter.Exporter{
-			Bucket:      c.Bucket,
-			Format:      format,
-			S3Path:      c.Path,
-			Filename:    filename,
-			CsvTemplate: csvTemplate,
+			Bucket:                  c.Bucket,
+			Format:                  format,
+			S3Path:                  c.Path,
+			Filename:                filename,
+			CsvTemplate:             csvTemplate,
+			ParquetCompressionCodec: parquetCompressionCodec,
 		}
 		return dataExp, nil
 
 	case config.GoogleStorageExporter:
 		dataExp.Exporter = &gcstorageexporter.Exporter{
-			Bucket:      c.Bucket,
-			Format:      format,
-			Path:        c.Path,
-			Filename:    filename,
-			CsvTemplate: csvTemplate,
+			Bucket:                  c.Bucket,
+			Format:                  format,
+			Path:                    c.Path,
+			Filename:                filename,
+			CsvTemplate:             csvTemplate,
+			ParquetCompressionCodec: parquetCompressionCodec,
 		}
 		return dataExp, nil
 
@@ -246,7 +264,12 @@ func initNotifier(c []config.NotifierConf) ([]notifier.Notifier, error) {
 
 		case config.WebhookNotifier:
 			notifiers = append(notifiers,
-				&webhooknotifier.Notifier{Secret: cNotif.Secret, EndpointURL: cNotif.EndpointURL, Meta: cNotif.Meta},
+				&webhooknotifier.Notifier{
+					Secret:      cNotif.Secret,
+					EndpointURL: cNotif.EndpointURL,
+					Meta:        cNotif.Meta,
+					Headers:     cNotif.Headers,
+				},
 			)
 
 		default:

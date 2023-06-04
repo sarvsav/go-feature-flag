@@ -16,7 +16,7 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.ref }}
       - name: Setup go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v4
         with:
           go-version: '^1.18.0'
       - run: make lint
@@ -30,7 +30,7 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.ref }}
       - name: Setup go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v4
         with:
           go-version: '^1.18.0'
       - run: make test
@@ -44,7 +44,7 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.ref }}
       - name: Setup go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v4
         with:
           go-version: '^1.18.0'
       - run: make coverage
@@ -53,6 +53,19 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
 
+  swagger-change:
+    name: Swagger Change
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Setup go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '^1.18.0'
+      - run: make swagger
+      - run: git diff --exit-code --quiet
+
   integration-tests:
     name: Integration Tests
     runs-on: ubuntu-latest
@@ -60,7 +73,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
       - name: Setup go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v4
         with:
           go-version: '^1.18.0'
       - name: Set up Maven
@@ -77,7 +90,6 @@ jobs:
 
   Benchmark:
     runs-on: ubuntu-latest
-    needs: Coverage
     if: ${{ github.ref == 'refs/heads/main' }}
     steps:
       - name: checkout
@@ -86,7 +98,7 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.ref }}
       - name: Setup go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v4
         with:
           go-version: '^1.18.0'
       - name: Run benchmark

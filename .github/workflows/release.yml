@@ -4,14 +4,27 @@ on:
     types: [ published ]
 
 jobs:
+  pre-version-check:
+    name: pre version check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Stop if pre-release
+        run: |
+          if [[ "${{ github.event.release.tag_name }}" =~ - ]]; then
+            echo "This is a pre-release version, stopping workflow..."
+            exit 1
+          fi
+
   integration-tests:
     name: Integration Tests
+    needs:
+      - pre-version-check
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
       - name: Setup go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v4
         with:
           go-version: '^1.18.0'
       - name: Set up Maven
@@ -33,9 +46,12 @@ jobs:
         run: git fetch --force --tags
 
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v4
         with:
           go-version: '^1.18.0'
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
 
       - name: Docker login
         env:
@@ -45,7 +61,7 @@ jobs:
           echo "${DOCKER_PASSWORD}" | docker login --username "${DOCKER_USERNAME}" --password-stdin
 
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v3
+        uses: goreleaser/goreleaser-action@v4
         with:
           distribution: goreleaser
           version: latest
@@ -117,6 +133,28 @@ jobs:
           username: ${DOCKER_USERNAME}
           password: ${DOCKER_PASSWORD}
           repository: thomaspoignant/go-feature-flag-relay-proxy
+          readme: "./cmd/relayproxy/DOCKERHUB_deprecated.md"
+
+  dockerhub-go-feature-flag-server:
+    runs-on: ubuntu-latest
+    name: Upload dockerhub readme
+    needs:
+      - goreleaser
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Release readme to DockerHub
+        uses: ms-jpq/sync-dockerhub-readme@v1
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+        with:
+          username: ${DOCKER_USERNAME}
+          password: ${DOCKER_PASSWORD}
+          repository: thomaspoignant/go-feature-flag
           readme: "./cmd/relayproxy/DOCKERHUB.md"
 
   doc-release:
@@ -165,18 +203,19 @@ jobs:
         run: cp -rf release/${{ env.WEBSITE_DIR }}/ $MAIN_BRANCH_NAME
 
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v4
+        uses: peter-evans/create-pull-request@v5
         with:
           branch: create-new-doc-version-${{ env.GIT_TAG_NAME }}
           title: Create a new documentation version ${{ env.GIT_TAG_NAME }}
           body: Automated pull request to create a new documentation version ${{ env.GIT_TAG_NAME }}
+          commit-message: Create a new documentation version ${{ env.GIT_TAG_NAME }}
           labels: automerge
           assignees: thomaspoignant
-          reviewers: thomaspoignant
           draft: false
           signoff: true
           delete-branch: true
           path: ${{ env.MAIN_BRANCH_NAME }}
+          token: ${{ secrets.PERSONAL_GITHUB_TOKEN }}
 
   bump-relay-proxy-helm-chart:
     # bump-relay-proxy-helm-chart is opening a pull request to bump the appVersion field
@@ -197,7 +236,7 @@ jobs:
           token: ${{ secrets.PERSONAL_GITHUB_TOKEN }}
 
       - name: yq - portable yaml processor
-        uses: mikefarah/yq@v4.31.1
+        uses: mikefarah/yq@v4.34.1
 
       - name: Get tag name
         uses: olegtarasov/get-tag@v2.1.2
@@ -209,10 +248,6 @@ jobs:
       - name: Bump chart version
         working-directory: ./release/
         run: yq -i ".version=\"${GIT_TAG_NAME#v}\"" $CHART_YAML_FILE_LOCATION
-
-      - name: Update chart README
-        working-directory: ./release/
-        run: make generate-helm-docs
 
       - name: Checkout main branch
         uses: actions/checkout@v3
@@ -228,18 +263,19 @@ jobs:
         run: cp -rf release/$CHART_YAML_FILE_LOCATION $MAIN_BRANCH_NAME/$CHART_YAML_FILE_LOCATION
 
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v4
+        uses: peter-evans/create-pull-request@v5
         with:
           branch: bump-relay-proxy-helm-chart-${{ env.GIT_TAG_NAME }}
           title: Bump relay-proxy helm chart version ${{ env.GIT_TAG_NAME }}
           body: Automated pull request to bump relay-proxy helm chart version ${{ env.GIT_TAG_NAME }}
+          commit-message: Bump relay-proxy helm chart version ${{ env.GIT_TAG_NAME }}
           labels: automerge
           assignees: thomaspoignant
-          reviewers: thomaspoignant
           draft: false
           signoff: true
           delete-branch: true
           path: ${{ env.MAIN_BRANCH_NAME }}
+          token: ${{ secrets.PERSONAL_GITHUB_TOKEN }}
 
   homebrew:
     name: Bump homebrew-core formula

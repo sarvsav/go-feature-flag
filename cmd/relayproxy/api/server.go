@@ -2,10 +2,10 @@ package api
 
 import (
 	"fmt"
+	custommiddleware "github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/api/middleware"
 	"strings"
 	"time"
 
-	"github.com/brpaz/echozap"
 	"github.com/labstack/echo-contrib/prometheus"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -57,7 +57,7 @@ func (s *Server) init() {
 	s.echoInstance.Use(metrics.AddCustomMetricsMiddleware)
 
 	// Middlewares
-	s.echoInstance.Use(echozap.ZapLogger(s.zapLog))
+	s.echoInstance.Use(custommiddleware.ZapLogger(s.zapLog, s.config))
 	s.echoInstance.Use(middleware.Recover())
 	s.echoInstance.Use(middleware.TimeoutWithConfig(
 		middleware.TimeoutConfig{Timeout: time.Duration(s.config.RestAPITimeout) * time.Millisecond}),
@@ -104,7 +104,7 @@ func (s *Server) init() {
 // Start launch the API server
 func (s *Server) Start() {
 	if s.config.ListenPort == 0 {
-		s.config.ListenPort = 3000
+		s.config.ListenPort = 1031
 	}
 	address := fmt.Sprintf("0.0.0.0:%d", s.config.ListenPort)
 
@@ -117,6 +117,12 @@ func (s *Server) Start() {
 	if err != nil {
 		s.zapLog.Fatal("impossible to start the proxy", zap.Error(err))
 	}
+}
+
+// StartAwsLambda is starting the relay proxy as an AWS Lambda
+func (s *Server) StartAwsLambda() {
+	adapter := newAwsLambdaHandler(s.echoInstance)
+	adapter.Start()
 }
 
 // Stop shutdown the API server
