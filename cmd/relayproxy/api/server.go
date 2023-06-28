@@ -2,9 +2,12 @@ package api
 
 import (
 	"fmt"
-	custommiddleware "github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/api/middleware"
+	"log"
 	"strings"
 	"time"
+
+	custommiddleware "github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/api/middleware"
+	"google.golang.org/grpc"
 
 	"github.com/labstack/echo-contrib/prometheus"
 	"github.com/labstack/echo/v4"
@@ -16,6 +19,8 @@ import (
 	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/metric"
 	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/service"
 	"go.uber.org/zap"
+
+	relayproxyv1 "github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/schema/gen/proto/go/github.com/thomaspoignant/go-feature-flag/relayproxy/v1"
 )
 
 // New is used to create a new instance of the API server
@@ -32,6 +37,25 @@ func New(config *config.Config,
 	}
 	s.init()
 	return s
+}
+
+func grpcMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		conn, err := grpc.Dial("localhost:50051", grpc.WithInsecure())
+		if err != nil {
+			log.Fatalf("did not connect: %v", err)
+		}
+		defer conn.Close()
+
+		// Create a grpc client
+		client := relayproxyv1.NewRelayProxyServiceClient(conn)
+
+		// Set the client in the context
+		c.Set("grpcClient", client)
+
+		// Call the next handler
+		return next(c)
+	}
 }
 
 // Server is the struct that represent the API server

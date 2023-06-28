@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-package relayproxy.flags.v1;
+package relayproxy.v1;
 
-option go_package = "github.com/thomaspoignant/go-feature-flag/relayproxy/flags/v1;flagsv1";
+option go_package = "github.com/thomaspoignant/go-feature-flag/relayproxy/v1;relayproxyv1";
 
 import "google/protobuf/any.proto";
 
@@ -31,6 +31,6 @@ message AllFlagsResponse {
     bool valid = 2;
 }
 
-service AllFlagsService {
-    rpc Post(AllFlagsRequest) returns (AllFlagsResponse) {}
+service RelayProxyService {
+    rpc PostAllFlags(AllFlagsRequest) returns (AllFlagsResponse) {}
 }

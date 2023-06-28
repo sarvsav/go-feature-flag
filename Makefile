@@ -24,11 +24,11 @@ build-relayproxy: ## Build the relay proxy in out/bin/
 	mkdir -p out/bin
 	CGO_ENABLED=0 GO111MODULE=on $(GOCMD) build -mod vendor -o out/bin/relayproxy ./cmd/relayproxy/
 
-gen-protoc-relayproxy : ## Generate the protobuf files for relayproxy
+gen-protoc-relayproxy: ## Generate the protobuf files for relayproxy
 	$(GOCMD) install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 	$(GOCMD) install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
-	mkdir -p ./cmd/relayproxy/schema/gen/proto/go
-	protoc --proto_path=./cmd/relayproxy/schema/relayproxyapis/ --go-grpc_out=./cmd/relayproxy/schema/gen/proto/go ./cmd/relayproxy/schema/relayproxyapis/flags/v1/flags.proto
+	mkdir -p ./cmd/relayproxy/schema/gen/go
+	protoc --proto_path=./cmd/relayproxy/schema/relayproxyapis/ --go_out=./cmd/relayproxy/schema/gen/go --go_opt=paths=source_relative --go-grpc_out=./cmd/relayproxy/schema/gen/go --go-grpc_opt=paths=source_relative ./cmd/relayproxy/schema/relayproxyapis/v1/relayproxy.proto
 
 build-lint: ## Build the linter in out/bin/
 	mkdir -p out/bin
